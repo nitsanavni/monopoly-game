@@ -42,6 +42,7 @@
   .btn:active{transform:scale(.98)}
   .btn.ghost{background:var(--panel2);color:var(--ink)}
   .btn.danger{background:var(--err)}
+  .btn.danger-text{color:var(--err)}
   .btn:disabled{opacity:.4}
   .meta{color:var(--mut);font-size:12px}
   input{font-family:inherit;font-size:14px;background:#0b0f18;color:var(--ink);border:1px solid var(--line);
@@ -261,26 +262,32 @@ const HANDLERS = {
    Chooser — stands in for the NFC tap.
    ============================================================ */
 let chooserTab = 'player';
-let chooserHeading = 'Choose a card';
-function openChooser(filter, heading){   // filter limits which tabs make sense
+let chooserHeading = 'Choose';
+let chooserPred = null;        // optional filter for the property list
+let chooserPropRight = null;   // optional right-hand amount label for properties
+function openChooser(filter, heading, pred, propRight){   // filter limits which tabs make sense
   chooserTab = filter || 'player';
-  chooserHeading = heading || 'Choose a card';
+  chooserHeading = heading || 'Choose';
+  chooserPred = pred || null;
+  chooserPropRight = propRight || null;
   drawChooser(filter);
 }
 function closeChooser(){ document.getElementById('sheet').innerHTML=''; }
 function drawChooser(filter){
   const tabs = filter ? [filter] : ['player','property','chance'];
-  const list = chooserTab==='player'?S.players : chooserTab==='property'?S.props : S.chance;
-  const rows = list.map(c=>{
+  let list = chooserTab==='player'?S.players : chooserTab==='property'?S.props : S.chance;
+  if(chooserTab==='property' && chooserPred) list = list.filter(chooserPred);
+  let rows = list.map(c=>{
     let right='';
     if(chooserTab==='player') right=`<span class="r">${M(c.bal)}</span>`;
-    else if(chooserTab==='property') right=`<span class="r">${c.owner?'owned':M(c.price)}</span>`;
+    else if(chooserTab==='property') right=`<span class="r">${chooserPropRight?chooserPropRight(c):(c.owner?'owned':M(c.price))}</span>`;
     const icon = chooserTab==='player'
       ? `<span style="font-size:18px">${c.token}</span>`
       : chooserTab==='chance' ? '❔'
       : `<span class="dot" style="background:${GROUPS[c.group]}"></span>`;
     return `<button class="chip" data-id="${c.id}">${icon}<span>${c.name}</span>${right}</button>`;
   }).join('');
+  if(!list.length) rows = `<div class="hint" style="padding:10px 4px">No places here yet. Buy one first with “Buy a place”.</div>`;
   const tabBar = tabs.length>1 ? `<div class="tabs">${
     tabs.map(t=>`<button class="tab ${chooserTab===t?'on':''}" data-tab="${t}">${
       t==='player'?'Players':t==='property'?'Property':'Chance'}</button>`).join('')}</div>` : '';
@@ -365,12 +372,23 @@ function renderAction(){
       <div style="font-weight:600;margin-top:8px">${flow.result}</div></div>
       <button class="btn" id="more">Do this again</button>
       <button class="btn ghost" id="home" style="margin-top:10px">Back to home</button>
-      <div class="hint" style="margin-top:14px">Made a mistake? Settings ⋯ has an Undo.</div>`;
+      <button class="btn ghost danger-text" id="undo2" style="margin-top:10px">↩ Undo this (made a mistake)</button>`;
     document.getElementById('more').onclick=()=>startMode(flow.mode);
     document.getElementById('home').onclick=()=>go('home');
+    document.getElementById('undo2').onclick=()=>{ if(undoLast()){ buzz(15); go('home'); } };
     return;
   }
   const total=m.steps.length, step=m.steps[flow.step-1];
+  // property steps show only the relevant places, with a clearly-labelled amount
+  let pred=null, propRight=null;
+  if(step.filter==='property'){
+    if(m.k==='buy'){  pred=p=>!p.owner;  propRight=p=>'Buy '+M(p.price); }
+    else if(m.k==='rent'){ pred=p=>!!p.owner; propRight=p=>'Rent '+M(rentFor(p)); }
+    else if(m.k==='sell'){ pred=p=>!!p.owner; propRight=p=>'Get '+M(p.price); }
+  }
+  const tapLabel = step.filter==='player'?'👆 Tap the player'
+    : step.filter==='property'?'👆 Tap the place'
+    : '👆 Tap the Chance card';
   main.innerHTML=`<div class="card center">
       <div style="font-size:34px;margin-bottom:4px">${m.ic}</div>
       <div style="font-weight:700;font-size:13px;color:var(--mut)">${m.name}${total>1?` &middot; step ${flow.step} of ${total}`:''}</div>
@@ -378,12 +396,11 @@ function renderAction(){
       ${flow.first?`<div class="meta" style="margin-top:8px">✓ picked: <b style="color:var(--ink)">${flow.first.name}</b></div>`:''}
       ${flow.error?`<div class="hint"><span style="color:var(--err)">${flow.error}</span></div>`:''}
     </div>
-    <button class="btn" id="tap">👆 Choose a card</button>
-    <button class="btn ghost" id="cancel" style="margin-top:10px">Start over</button>
-    <div class="hint" style="margin-top:14px">Choosing here is just like tapping a real card later.</div>`;
-  document.getElementById('tap').onclick=()=>openChooser(step.filter, step.q);
+    <button class="btn" id="tap">${tapLabel}</button>
+    <button class="btn ghost" id="cancel" style="margin-top:10px">Start over</button>`;
+  document.getElementById('tap').onclick=()=>openChooser(step.filter, step.q, pred, propRight);
   document.getElementById('cancel').onclick=()=>go('home');
-  setStatus(total>1?`step ${flow.step} of ${total}`:'pick a card');
+  setStatus(total>1?`step ${flow.step} of ${total}`:'pick one');
 }
 
 function renderPlayers(){
