@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<title>Monopoly Bank</title>
+<style>
+  :root{
+    --bg:#0e1320; --panel:#161d2e; --panel2:#1d2741; --line:#2a3550;
+    --ink:#eef1f7; --mut:#8b93a7; --accent:#1f8fff; --ok:#1FB25A; --err:#ED4B4B; --warn:#F2C400;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);
+    min-height:100vh;display:flex;flex-direction:column;max-width:430px;margin:0 auto}
+  header{padding:14px 16px;display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid var(--line);background:var(--panel)}
+  header h1{font-size:16px;font-weight:800}
+  header .sub{font-size:11px;color:var(--mut)}
+  main{flex:1;padding:16px;overflow-y:auto}
+  nav{display:flex;border-top:1px solid var(--line);background:var(--panel)}
+  nav button{flex:1;background:none;border:none;color:var(--mut);font-family:inherit;font-size:11px;
+    font-weight:700;padding:10px 4px;cursor:pointer;display:flex;flex-direction:column;gap:3px;align-items:center}
+  nav button.on{color:var(--accent)}
+  nav button .ic{font-size:18px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--mut);margin:4px 0 12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+  .row{display:flex;align-items:center;gap:10px}
+  .between{justify-content:space-between}
+  .bal{font-variant-numeric:tabular-nums;font-weight:800}
+  .dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  button.mode{background:var(--panel);border:1px solid var(--line);color:var(--ink);font-family:inherit;
+    font-weight:700;font-size:14px;border-radius:14px;padding:16px 12px;text-align:left;cursor:pointer;
+    display:flex;flex-direction:column;gap:4px}
+  button.mode:active{transform:scale(.98)}
+  button.mode .d{font-size:11px;color:var(--mut);font-weight:500}
+  button.mode .ic{font-size:22px}
+  .btn{font-family:inherit;font-weight:800;font-size:15px;border:none;border-radius:12px;padding:14px;
+    width:100%;cursor:pointer;color:#fff;background:var(--accent)}
+  .btn:active{transform:scale(.98)}
+  .btn.ghost{background:var(--panel2);color:var(--ink)}
+  .btn.danger{background:var(--err)}
+  .btn:disabled{opacity:.4}
+  .meta{color:var(--mut);font-size:12px}
+  input{font-family:inherit;font-size:14px;background:#0b0f18;color:var(--ink);border:1px solid var(--line);
+    border-radius:8px;padding:8px 10px;width:100%}
+  /* chooser sheet (stands in for an NFC tap) */
+  .sheet-bg{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:flex-end;
+    justify-content:center;z-index:50}
+  .sheet{width:100%;max-width:430px;background:var(--panel);border-radius:16px 16px 0 0;padding:16px;
+    max-height:80vh;overflow-y:auto}
+  .sheet h3{font-size:13px;color:var(--mut);margin-bottom:12px;font-weight:700}
+  .chip{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:13px 12px;border-radius:10px;
+    border:1px solid var(--line);background:var(--panel2);color:var(--ink);cursor:pointer;margin-bottom:8px;
+    font-size:14px;font-weight:600}
+  .chip:active{transform:scale(.99)}
+  .chip .r{margin-left:auto;color:var(--mut);font-size:12px;font-weight:500}
+  .tabs{display:flex;gap:6px;margin-bottom:12px}
+  .tab{flex:1;background:var(--panel2);border:1px solid var(--line);color:var(--mut);font-family:inherit;
+    font-weight:700;font-size:12px;padding:8px;border-radius:8px;cursor:pointer}
+  .tab.on{background:#0c2748;color:var(--accent);border-color:var(--accent)}
+  /* approved receipt */
+  .check{width:72px;height:72px;border-radius:50%;background:rgba(31,178,90,.15);display:flex;
+    align-items:center;justify-content:center;color:var(--ok);font-size:38px;margin:0 auto 14px}
+  .center{text-align:center}
+  .hint{color:var(--mut);font-size:12px;text-align:center;margin-top:8px;line-height:1.5}
+  .pill{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:999px;
+    padding:3px 9px;font-size:11px;color:var(--mut)}
+</style>
+</head>
+<body>
+  <header>
+    <div><h1>Bank</h1><div class="sub" id="hsub">Super Electronic Banking</div></div>
+    <div class="pill" id="status">ready</div>
+  </header>
+  <main id="main"></main>
+  <nav id="nav"></nav>
+  <div id="sheet"></div>
+
+<script>
+/* ============================================================
+   Monopoly Super Electronic Banking — bank terminal (static web app)
+   One entry point for every card read: onCardTap(cardId).
+   A chooser stands in for the NFC tap until real cards exist;
+   real Web NFC will call onCardTap with the exact same ids.
+   ============================================================ */
+
+const M = n => 'M' + n.toLocaleString();
+const GROUPS = {
+  brown:'#7B4A2B', lblue:'#86C5E8', pink:'#D93A96', orange:'#F7941D',
+  red:'#ED1B24', yellow:'#F2C400', green:'#1FB25A', dblue:'#0072BB'
+};
+const START_CASH = 1500;
+
+function freshState(){
+  return {
+    players: [
+      {id:'pl_car',   name:'World Traveler', token:'🚗', color:'#F2C400', bal:START_CASH, jail:false},
+      {id:'pl_plane', name:'Frequent Flyer', token:'✈️', color:'#0072BB', bal:START_CASH, jail:false},
+      {id:'pl_safe',  name:'Super Saver',    token:'🔒', color:'#7d7d7d', bal:START_CASH, jail:false},
+      {id:'pl_bag',   name:'Big Spender',    token:'🛍️', color:'#ED1B24', bal:START_CASH, jail:false},
+    ],
+    props: [
+      ['pr_medi','Mediterranean Ave',60,'brown'],['pr_balt','Baltic Ave',60,'brown'],
+      ['pr_orie','Oriental Ave',100,'lblue'],['pr_verm','Vermont Ave',100,'lblue'],
+      ['pr_char','St. Charles Place',140,'pink'],['pr_stat','States Ave',140,'pink'],
+      ['pr_jame','St. James Ave',180,'orange'],['pr_tenn','Tennessee Ave',180,'orange'],
+      ['pr_kent','Kentucky Ave',220,'red'],['pr_indi','Indiana Ave',220,'red'],
+      ['pr_atla','Atlantic Ave',260,'yellow'],['pr_vent','Ventnor Ave',260,'yellow'],
+      ['pr_paci','Pacific Ave',300,'green'],['pr_ncar','North Carolina Ave',300,'green'],
+      ['pr_park','Park Place',350,'dblue'],['pr_boar','Boardwalk',400,'dblue'],
+    ].map(([id,name,price,group])=>({id,name,price,group,owner:null})),
+    chance: [
+      {id:'ch_div',   name:'Bank dividend',   text:'Bank pays you a dividend of M50.', amt:50},
+      {id:'ch_loan',  name:'Loan matures',    text:'Building loan matures. Collect M150.', amt:150},
+      {id:'ch_inh',   name:'Inheritance',     text:'You inherit M100.', amt:100},
+      {id:'ch_error', name:'Bank error',      text:'Bank error in your favour. Collect M200.', amt:200},
+      {id:'ch_school',name:'School fees',     text:'Pay school fees of M50.', amt:-50},
+      {id:'ch_speed', name:'Speeding fine',   text:'Speeding fine. Pay M15.', amt:-15},
+      {id:'ch_hosp',  name:'Hospital fees',   text:'Pay hospital fees of M100.', amt:-100},
+    ],
+    log: [],   // transaction history (newest last); each entry can be undone
+  };
+}
+
+let S = load() || freshState();
+function load(){ try{ return JSON.parse(localStorage.getItem('mono_bank')); }catch(e){ return null; } }
+function persist(){ localStorage.setItem('mono_bank', JSON.stringify(S)); }
+
+const byId = id => [...S.players, ...S.props, ...S.chance].find(c => c.id === id);
+const player = id => S.players.find(p => p.id === id);
+const prop   = id => S.props.find(p => p.id === id);
+
+function buzz(ms){ if(navigator.vibrate) navigator.vibrate(ms); }
+function setStatus(t){ document.getElementById('status').textContent = t; }
+
+/* ---- rent: own 1 of a colour pair = half price, own both = full price ---- */
+function rentFor(p){
+  const pair = S.props.filter(x => x.group === p.group);
+  const ownsBoth = pair.every(x => x.owner === p.owner);
+  return ownsBoth ? p.price : Math.round(p.price / 2);
+}
+
+/* ---- transactions go through here so undo is uniform ---- */
+function commit(entry){            // {msg, changes:[{id,bal?,owner?,jail?}], snapshot}
+  S.log.push(entry);
+  persist();
+}
+function undoLast(){
+  const e = S.log.pop();
+  if(!e) return false;
+  for(const s of e.snapshot){
+    const t = byId(s.id);
+    if('bal'   in s) t.bal   = s.bal;
+    if('owner' in s) t.owner = s.owner;
+    if('jail'  in s) t.jail  = s.jail;
+  }
+  persist();
+  return e;
+}
+// capture current values of the fields we're about to change, for undo
+function snap(ids, fields){
+  return ids.map(id => {
+    const t = byId(id), s = {id};
+    for(const f of fields) s[f] = t[f];
+    return s;
+  });
+}
+
+/* ============================================================
+   onCardTap — the single entry point. Today the chooser calls it.
+   Tomorrow the NFC reader calls it with the same card ids.
+   ============================================================ */
+let flow = null;   // {mode, step, first, extra}
+
+function startMode(mode){
+  flow = {mode, step:1, first:null, extra:{}};
+  renderAction();
+}
+
+function onCardTap(cardId){
+  if(!flow) return;
+  const c = byId(cardId);
+  buzz(15);
+  const H = HANDLERS[flow.mode];
+  H && H(c);
+  renderAction();
+}
+
+/* each handler advances flow and, when complete, calls done(msg) */
+function done(msg){
+  setStatus('approved'); buzz([20,40,30]);
+  flow.result = msg; flow.step = 'done';
+}
+function reject(msg){ flow.error = msg; setTimeout(()=>{ if(flow){flow.error=null;renderAction();} }, 1500); }
+
+const HANDLERS = {
+  passgo(c){
+    if(c.type!=='player') return reject('Tap a player.');
+    const s = snap([c.id],['bal']); c.bal += 200;
+    commit({msg:`${c.name} passed GO  +${M(200)}`, snapshot:s});
+    done(`${c.name} collected ${M(200)}`);
+  },
+  buy(c){
+    if(flow.step===1){ if(c.type!=='property') return reject('Tap a property.');
+      if(c.owner) return reject('Already owned.');
+      flow.first=c; flow.step=2; return; }
+    if(c.type!=='player') return reject('Tap the buyer.');
+    const p=flow.first, s=snap([c.id,p.id],['bal','owner']);
+    c.bal-=p.price; p.owner=c.id;
+    commit({msg:`${c.name} bought ${p.name} for ${M(p.price)}`, snapshot:s});
+    done(`${c.name} bought ${p.name} for ${M(p.price)}`);
+  },
+  rent(c){   // owner taps property first, then the payer
+    if(flow.step===1){ if(c.type!=='property') return reject('Owner: tap the property.');
+      if(!c.owner) return reject('Nobody owns that.');
+      flow.first=c; flow.step=2; return; }
+    if(c.type!=='player') return reject('Payer: tap your card.');
+    const p=flow.first, owner=player(p.owner);
+    if(c.id===owner.id) return reject("Owner can't pay themselves.");
+    if(owner.jail) return reject('Owner in Jail — no rent.');
+    const rent=rentFor(p), s=snap([c.id,owner.id],['bal']);
+    c.bal-=rent; owner.bal+=rent;
+    commit({msg:`${c.name} paid ${M(rent)} rent on ${p.name}`, snapshot:s});
+    done(`${c.name} paid ${owner.name} ${M(rent)}`);
+  },
+  flight(c){
+    if(c.type!=='player') return reject('Tap a player.');
+    const free=c.id==='pl_plane';   // Frequent Flyer flies free
+    const s=snap([c.id],['bal']); if(!free) c.bal-=100;
+    commit({msg:`${c.name} flew${free?' (free)':` −${M(100)}`}`, snapshot:s});
+    done(free?`${c.name} flew free`:`${c.name} paid ${M(100)} to fly`);
+  },
+  chance(c){
+    if(flow.step===1){ if(c.type!=='chance') return reject('Tap a Chance card.');
+      flow.first=c; flow.step=2; return; }
+    if(c.type!=='player') return reject('Tap a player.');
+    const ch=flow.first, s=snap([c.id],['bal']); c.bal+=ch.amt;
+    commit({msg:`${c.name}: ${ch.text}`, snapshot:s});
+    done(ch.amt>=0?`${c.name} got ${M(ch.amt)}`:`${c.name} paid ${M(-ch.amt)}`);
+  },
+  jail(c){
+    if(c.type!=='player') return reject('Tap a player.');
+    const s=snap([c.id],['bal','jail']); c.bal-=100; c.jail=false;
+    commit({msg:`${c.name} paid ${M(100)} out of Jail`, snapshot:s});
+    done(`${c.name} is out of Jail`);
+  },
+  sell(c){   // debt-sell: tap an owned property, bank buys it back at price
+    if(c.type!=='property') return reject('Tap a property.');
+    if(!c.owner) return reject('Not owned.');
+    const owner=player(c.owner), s=snap([owner.id,c.id],['bal','owner']);
+    owner.bal+=c.price; c.owner=null;
+    commit({msg:`${owner.name} sold ${c.name} back for ${M(c.price)}`, snapshot:s});
+    done(`Bank paid ${owner.name} ${M(c.price)}`);
+  },
+};
+
+/* ============================================================
+   Chooser — stands in for the NFC tap.
+   ============================================================ */
+let chooserTab = 'player';
+function openChooser(filter){   // filter limits which tabs make sense
+  chooserTab = filter || 'player';
+  drawChooser(filter);
+}
+function closeChooser(){ document.getElementById('sheet').innerHTML=''; }
+function drawChooser(filter){
+  const tabs = filter ? [filter] : ['player','property','chance'];
+  const list = chooserTab==='player'?S.players : chooserTab==='property'?S.props : S.chance;
+  const rows = list.map(c=>{
+    let right='';
+    if(chooserTab==='player') right=`<span class="r">${M(c.bal)}</span>`;
+    else if(chooserTab==='property') right=`<span class="r">${c.owner?'owned':M(c.price)}</span>`;
+    const icon = chooserTab==='player'
+      ? `<span style="font-size:18px">${c.token}</span>`
+      : chooserTab==='chance' ? '❔'
+      : `<span class="dot" style="background:${GROUPS[c.group]}"></span>`;
+    return `<button class="chip" data-id="${c.id}">${icon}<span>${c.name}</span>${right}</button>`;
+  }).join('');
+  const tabBar = tabs.length>1 ? `<div class="tabs">${
+    tabs.map(t=>`<button class="tab ${chooserTab===t?'on':''}" data-tab="${t}">${
+      t==='player'?'Players':t==='property'?'Property':'Chance'}</button>`).join('')}</div>` : '';
+  document.getElementById('sheet').innerHTML =
+    `<div class="sheet-bg" id="sbg"><div class="sheet">
+      <h3>Tap a card</h3>${tabBar}${rows}
+      <button class="btn ghost" id="cx">Cancel</button>
+    </div></div>`;
+  const sheet=document.getElementById('sheet');
+  document.getElementById('sbg').onclick=e=>{ if(e.target.id==='sbg') closeChooser(); };
+  document.getElementById('cx').onclick=closeChooser;
+  sheet.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{chooserTab=b.dataset.tab;drawChooser(filter);});
+  sheet.querySelectorAll('.chip').forEach(b=>b.onclick=()=>{ closeChooser(); onCardTap(b.dataset.id); });
+}
+// derive a card's type from its shape
+function typeOf(c){ return c.token!==undefined?'player' : c.price!==undefined?'property':'chance'; }
+// attach .type lazily
+[...S.players,...S.props,...S.chance].forEach(c=>c.type=typeOf(c));
+
+/* ============================================================
+   Screens
+   ============================================================ */
+let screen='home';
+const MODES=[
+  {k:'passgo', ic:'🏁', name:'Pass GO',  d:'+M200', filter:'player'},
+  {k:'buy',    ic:'🏠', name:'Buy',      d:'property → buyer', filter:'property'},
+  {k:'rent',   ic:'💰', name:'Pay rent', d:'owner taps first', filter:'property'},
+  {k:'flight', ic:'✈️', name:'Flight',   d:'−M100', filter:'player'},
+  {k:'chance', ic:'❔', name:'Chance',   d:'apply card', filter:'chance'},
+  {k:'jail',   ic:'🔓', name:'Jail',     d:'pay M100', filter:'player'},
+  {k:'sell',   ic:'🏦', name:'Sell back',d:'debt only', filter:'property'},
+];
+
+function renderNav(){
+  const items=[['home','🏠','Home'],['players','👥','Players'],['setup','⚙️','Setup'],['settings','⋯','Settings']];
+  document.getElementById('nav').innerHTML=items.map(([k,ic,l])=>
+    `<button class="${screen===k?'on':''}" data-s="${k}"><span class="ic">${ic}</span>${l}</button>`).join('');
+  document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>go(b.dataset.s));
+}
+function go(s){ screen=s; flow=null; render(); }
+function render(){
+  renderNav();
+  if(screen==='home') renderHome();
+  else if(screen==='players') renderPlayers();
+  else if(screen==='setup') renderSetup();
+  else if(screen==='settings') renderSettings();
+}
+
+function renderHome(){
+  const bals=S.players.map(p=>`<div class="row between card" style="padding:12px 14px">
+    <div class="row"><span class="dot" style="background:${p.color}"></span>
+      <span style="font-size:18px">${p.token}</span><b>${p.name}</b>${p.jail?'<span class="pill">jail</span>':''}</div>
+    <span class="bal">${M(p.bal)}</span></div>`).join('');
+  const modes=MODES.map(m=>`<button class="mode" data-m="${m.k}">
+    <span class="ic">${m.ic}</span><span>${m.name}</span><span class="d">${m.d}</span></button>`).join('');
+  document.getElementById('main').innerHTML=
+    `<h2>Balances</h2>${bals}<h2 style="margin-top:18px">Actions</h2><div class="grid">${modes}</div>`;
+  document.querySelectorAll('button.mode').forEach(b=>b.onclick=()=>startMode(b.dataset.m));
+  setStatus('ready');
+}
+
+function renderAction(){
+  const m=MODES.find(x=>x.k===flow.mode);
+  const main=document.getElementById('main');
+  if(flow.step==='done'){
+    main.innerHTML=`<div class="card center"><div class="check">✓</div>
+      <div style="font-weight:700">${flow.result}</div>
+      <div class="hint">${m.name} complete</div></div>
+      <button class="btn" id="more">Do another ${m.name}</button>
+      <button class="btn ghost" id="home" style="margin-top:10px">Home</button>`;
+    document.getElementById('more').onclick=()=>startMode(flow.mode);
+    document.getElementById('home').onclick=()=>go('home');
+    return;
+  }
+  const prompts={
+    passgo:'Tap the player who passed GO',
+    buy: flow.step===1?'Tap the property being bought':'Now tap the buyer',
+    rent: flow.step===1?'Owner: tap your property':'Payer: tap your card',
+    flight:'Tap the flying player',
+    chance: flow.step===1?'Tap the Chance card':'Tap the player it applies to',
+    jail:'Tap the player paying out',
+    sell:'Tap the property to sell back',
+  };
+  const filter = (flow.mode==='buy'||flow.mode==='chance') && flow.step===2 ? 'player' : m.filter;
+  main.innerHTML=`<div class="card center">
+      <div style="font-size:30px;margin-bottom:6px">${m.ic}</div>
+      <div style="font-weight:800;font-size:17px">${m.name}</div>
+      ${flow.first?`<div class="meta" style="margin-top:6px">${flow.first.name}</div>`:''}
+      <div class="hint">${flow.error?`<span style="color:var(--err)">${flow.error}</span>`:prompts[flow.mode]}</div>
+    </div>
+    <button class="btn" id="tap">Tap a card</button>
+    <button class="btn ghost" id="cancel" style="margin-top:10px">Cancel</button>
+    <div class="hint" style="margin-top:14px">The chooser stands in for an NFC tap until the cards exist.</div>`;
+  document.getElementById('tap').onclick=()=>openChooser(filter);
+  document.getElementById('cancel').onclick=()=>go('home');
+  setStatus(flow.step===2?'tap 2 of 2':'tap a card');
+}
+
+function renderPlayers(){
+  const rows=S.players.map(p=>{
+    const owned=S.props.filter(x=>x.owner===p.id);
+    const names=owned.map(o=>`<span class="dot" style="background:${GROUPS[o.group]};display:inline-block;margin-right:3px"></span>`).join('');
+    return `<div class="card">
+      <div class="row between"><div class="row"><span style="font-size:20px">${p.token}</span>
+        <div><b>${p.name}</b><div class="meta">${owned.length} propert${owned.length===1?'y':'ies'}</div></div></div>
+        <span class="bal">${M(p.bal)}</span></div>
+      ${owned.length?`<div style="margin-top:10px">${names}</div>`:''}</div>`;
+  }).join('');
+  document.getElementById('main').innerHTML=`<h2>Players</h2>${rows}`;
+}
+
+function renderSetup(){
+  document.getElementById('main').innerHTML=`<h2>Setup</h2>
+    <div class="card"><div class="hint" style="text-align:left">
+      Register cards here once real NFC tags exist: tap a tag, assign it to a player or property.
+      For now the chooser uses these built-in ids, so no registration is needed yet.</div></div>
+    <h2 style="margin-top:18px">Rename players</h2>
+    ${S.players.map((p,i)=>`<div class="card row"><span style="font-size:20px">${p.token}</span>
+      <input value="${p.name}" data-i="${i}"></div>`).join('')}`;
+  document.querySelectorAll('#main input').forEach(inp=>inp.onchange=()=>{
+    S.players[+inp.dataset.i].name=inp.value||'Player'; persist();
+  });
+}
+
+function renderSettings(){
+  const last=S.log[S.log.length-1];
+  document.getElementById('main').innerHTML=`<h2>Settings</h2>
+    <div class="card"><div class="row between">
+      <div><b>Undo last</b><div class="meta">${last?last.msg:'nothing to undo'}</div></div></div>
+      <button class="btn ghost" id="undo" style="margin-top:12px" ${last?'':'disabled'}>Undo</button></div>
+    <div class="card"><b>Sound &amp; haptics</b><div class="meta">Vibration on tap and approval (device permitting).</div></div>
+    <div class="card"><b>New game</b><div class="meta">Reset all balances to ${M(START_CASH)} and clear ownership.</div>
+      <button class="btn danger" id="new" style="margin-top:12px">Start new game</button></div>
+    <div class="hint">Game ends when all 16 properties are owned. Score = cash + property at purchase price.</div>`;
+  document.getElementById('undo').onclick=()=>{
+    const e=undoLast(); if(e){ buzz(15); render(); }
+  };
+  document.getElementById('new').onclick=()=>{
+    if(confirm('Start a new game? This clears all balances and ownership.')){
+      S=freshState(); [...S.players,...S.props,...S.chance].forEach(c=>c.type=typeOf(c));
+      persist(); go('home');
+    }
+  };
+}
+
+render();
+</script>
+</body>
+</html>
