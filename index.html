@@ -303,13 +303,13 @@ function typeOf(c){ return c.token!==undefined?'player' : c.price!==undefined?'p
    ============================================================ */
 let screen='home';
 const MODES=[
-  {k:'passgo', ic:'🏁', name:'Pass GO',  d:'+M200', filter:'player'},
-  {k:'buy',    ic:'🏠', name:'Buy',      d:'property → buyer', filter:'property'},
-  {k:'rent',   ic:'💰', name:'Pay rent', d:'owner taps first', filter:'property'},
-  {k:'flight', ic:'✈️', name:'Flight',   d:'−M100', filter:'player'},
-  {k:'chance', ic:'❔', name:'Chance',   d:'apply card', filter:'chance'},
-  {k:'jail',   ic:'🔓', name:'Jail',     d:'pay M100', filter:'player'},
-  {k:'sell',   ic:'🏦', name:'Sell back',d:'debt only', filter:'property'},
+  {k:'passgo', ic:'🏁', name:'Pass GO',  d:'+M200', seq:['player']},
+  {k:'buy',    ic:'🏠', name:'Buy',      d:'property → buyer', seq:['property','player']},
+  {k:'rent',   ic:'💰', name:'Pay rent', d:'owner taps first', seq:['property','player']},
+  {k:'flight', ic:'✈️', name:'Flight',   d:'−M100', seq:['player']},
+  {k:'chance', ic:'❔', name:'Chance',   d:'apply card', seq:['chance','player']},
+  {k:'jail',   ic:'🔓', name:'Jail',     d:'pay M100', seq:['player']},
+  {k:'sell',   ic:'🏦', name:'Sell back',d:'debt only', seq:['property']},
 ];
 
 function renderNav(){
@@ -362,7 +362,7 @@ function renderAction(){
     jail:'Tap the player paying out',
     sell:'Tap the property to sell back',
   };
-  const filter = (flow.mode==='buy'||flow.mode==='chance') && flow.step===2 ? 'player' : m.filter;
+  const filter = m.seq[flow.step-1];
   main.innerHTML=`<div class="card center">
       <div style="font-size:30px;margin-bottom:6px">${m.ic}</div>
       <div style="font-weight:800;font-size:17px">${m.name}</div>
