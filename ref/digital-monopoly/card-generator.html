@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monopoly Card Generator</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root{
+    --ink:#0e1320; --paper:#f4f1ea; --line:#cfc8b8; --accent:#1f5fae; --accent2:#c8202e;
+    --panel:#fffdf8; --muted:#6b6557;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"Trebuchet MS","Segoe UI",sans-serif;background:#11141c;color:#e9e6dd;line-height:1.5}
+  header{padding:20px 28px;border-bottom:1px solid #262a36;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;background:#161a24}
+  h1{font-size:20px;font-weight:800;letter-spacing:-.5px}
+  h1 span{color:var(--accent2)}
+  .sub{color:#8b91a0;font-size:13px;margin-top:2px}
+  .controls{display:flex;gap:10px;flex-wrap:wrap}
+  button{font-family:inherit;font-weight:700;font-size:13px;border:none;border-radius:8px;padding:10px 16px;cursor:pointer;transition:transform .08s,filter .15s}
+  button:active{transform:scale(.97)}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{filter:brightness(1.1)}
+  .btn-ghost{background:#262a36;color:#cfd3dd}
+  .btn-ghost:hover{background:#30353f}
+  .tabs{display:flex;gap:6px;padding:14px 28px 0;flex-wrap:wrap}
+  .tab{background:#1b1f29;color:#9aa0ad;padding:9px 16px;border-radius:8px 8px 0 0;cursor:pointer;font-weight:700;font-size:13px;border:1px solid transparent;border-bottom:none}
+  .tab.active{background:var(--panel);color:var(--ink)}
+  main{padding:0 28px 40px}
+  .editor{background:var(--panel);color:var(--ink);border-radius:0 10px 10px 10px;padding:20px}
+  .hint{font-size:13px;color:var(--muted);margin-bottom:16px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th{text-align:left;padding:8px 6px;border-bottom:2px solid var(--line);color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+  td{padding:5px 6px;border-bottom:1px solid #e7e2d6;vertical-align:middle}
+  input[type=text],input[type=number],textarea,select{font-family:inherit;font-size:13px;width:100%;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff;color:var(--ink)}
+  textarea{resize:vertical;min-height:38px}
+  .swatch{width:26px;height:26px;border-radius:5px;border:1px solid rgba(0,0,0,.2);cursor:pointer}
+  .row-del{background:#f2e3e3;color:var(--accent2);border-radius:6px;padding:6px 10px;font-size:12px}
+  .add-row{margin-top:14px;background:#e8eef7;color:var(--accent)}
+  .preview-wrap{margin-top:8px}
+  .preview-title{font-size:13px;color:#8b91a0;padding:14px 28px 4px}
+  .sheet{background:#fff;margin:0 auto;box-shadow:0 6px 30px rgba(0,0,0,.4)}
+  .legend{font-size:12px;color:#8b91a0;padding:6px 28px 0}
+  .cardgrid{display:grid;gap:12px}
+  /* on-screen card preview — credit-card landscape, content left + round tag zone right */
+  .card{border:1px solid #222;border-radius:10px;overflow:hidden;background:#fff;color:#111;display:flex;flex-direction:row;font-size:10px;aspect-ratio:85.6/54}
+  .card .content{flex:1;display:flex;flex-direction:column;min-width:0}
+  .card .tagzone{width:34%;flex-shrink:0;border-left:1px dashed #ccc;background:#faf7ee;display:flex;align-items:center;justify-content:center;padding:6px}
+  .card .tagcircle{width:46px;height:46px;border-radius:50%;border:1px dashed #b0b0b0;display:flex;align-items:center;justify-content:center;color:#9a9a9a;font-size:7px;text-align:center}
+  .pcard .band{height:24px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;text-transform:uppercase;font-size:9px;text-align:center;padding:2px}
+  .pcard .body{padding:6px;flex:1;display:flex;flex-direction:column;gap:2px}
+  .pcard .rent{display:flex;justify-content:space-between;font-size:8px}
+  .pcard .price{text-align:center;font-weight:800;margin-top:2px;border-top:1px solid #000;padding-top:2px;font-size:9px}
+  .ccard .content{padding:8px;text-align:center;justify-content:center;gap:3px}
+  .ccard .q{font-size:24px;font-weight:800;color:var(--accent)}
+  .ccard .txt{font-weight:700;font-size:9px;line-height:1.25}
+  .ccard .hd{font-size:7px;letter-spacing:1px;color:#888;text-transform:uppercase}
+  .bcard .content{align-items:stretch}
+  .bcard .top{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;gap:3px;padding:6px}
+  .bcard .tok{font-size:20px}
+  .bcard .nm{font-weight:800;font-size:11px;text-align:center}
+  .bcard .perk{background:#fff;color:#111;padding:5px;font-size:8px;text-align:center}
+  .nfc-note{background:#fff7e6;border:1px solid #f0d68a;color:#7a5b00;font-size:12px;padding:10px 12px;border-radius:8px;margin-bottom:16px}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>MONOPOLY <span>Super Electronic Banking</span> — Card Generator</h1>
+    <div class="sub">Edit the cards below, then export print-ready A4 PDFs with cut lines.</div>
+  </div>
+  <div class="controls">
+    <button class="btn-ghost" onclick="resetData()">Reset to defaults</button>
+    <button class="btn-primary" onclick="exportPDF()">⬇ Export PDF (current tab)</button>
+    <button class="btn-primary" onclick="exportAll()">⬇ Export ALL as PDF</button>
+  </div>
+</header>
+
+<div class="tabs" id="tabs"></div>
+<main>
+  <div class="editor" id="editor"></div>
+</main>
+<div class="preview-title">Live preview (this is roughly how each card prints)</div>
+<div class="legend">Cards are sized 85.6×54&nbsp;mm (credit-card / ISO ID-1, landscape). The right side reserves a 25&nbsp;mm round zone for the NFC tag. The PDF adds thin grey cut lines around each card.</div>
+<div class="preview-wrap"><main><div id="preview" class="cardgrid"></div></main></div>
+
+<script>
+const GROUPS={
+  brown:'#7B4A2B', lblue:'#86C5E8', pink:'#D93A96', orange:'#F7941D',
+  red:'#ED1B24', yellow:'#F2C400', green:'#1FB25A', dblue:'#0072BB'
+};
+const DEFAULT={
+  deeds:[
+    {name:'Mediterranean Ave',price:60,color:'brown'},{name:'Baltic Ave',price:60,color:'brown'},
+    {name:'Oriental Ave',price:100,color:'lblue'},{name:'Vermont Ave',price:100,color:'lblue'},
+    {name:'St. Charles Place',price:140,color:'pink'},{name:'States Ave',price:140,color:'pink'},
+    {name:'St. James Ave',price:180,color:'orange'},{name:'Tennessee Ave',price:180,color:'orange'},
+    {name:'Kentucky Ave',price:220,color:'red'},{name:'Indiana Ave',price:220,color:'red'},
+    {name:'Atlantic Ave',price:260,color:'yellow'},{name:'Ventnor Ave',price:260,color:'yellow'},
+    {name:'Pacific Ave',price:300,color:'green'},{name:'North Carolina Ave',price:300,color:'green'},
+    {name:'Park Place',price:350,color:'dblue'},{name:'Boardwalk',price:400,color:'dblue'}
+  ],
+  chance:[
+    'Advance to GO. Collect M200.','Bank pays you dividend of M50.','Go to Jail. Do not pass GO.',
+    'Your building loan matures. Collect M150.','Pay school fees of M50.','Speeding fine. Pay M15.',
+    'Get out of Jail free. Keep this card.','Advance to the nearest Flight space.',
+    'You won a crossword competition. Collect M100.','Pay hospital fees of M100.',
+    'Take a trip — advance to any property.','Bank error in your favour. Collect M200.',
+    'Doctor\u2019s fee. Pay M50.','You inherit M100.','Pay a M50 fine or take a Chance.',
+    'Grand opera night. Collect M50 from each player.','Holiday fund matures. Collect M100.',
+    'Income tax refund. Collect M20.','Life insurance matures. Collect M100.','It\u2019s your birthday. Collect M10 from each player.'
+  ],
+  bank:[
+    {name:'World Traveler',token:'\uD83D\uDE97',color:'#F2C400',perk:'Roll a 6 \u2192 collect M50'},
+    {name:'Frequent Flyer',token:'\u2708\uFE0F',color:'#0072BB',perk:'Fly for free (skip the M100)'},
+    {name:'Super Saver',token:'\uD83D\uDD12',color:'#7d7d7d',perk:'Land on Chance \u2192 +M50 bonus'},
+    {name:'Big Spender',token:'\uD83D\uDECD\uFE0F',color:'#ED1B24',perk:'First to buy a colour set \u2192 M50 back'}
+  ]
+};
+let data=structuredClone(DEFAULT);
+let tab='deeds';
+
+function save(){}
+function resetData(){if(confirm('Reset all cards to the original board defaults?')){data=structuredClone(DEFAULT);render()}}
+
+const TABS=[['deeds','Title Deeds (16)'],['chance','Chance (20)'],['bank','Player Cards (4)']];
+function renderTabs(){
+  document.getElementById('tabs').innerHTML=TABS.map(([k,l])=>
+    `<div class="tab ${tab===k?'active':''}" onclick="tab='${k}';render()">${l}</div>`).join('');
+}
+
+function renderEditor(){
+  const e=document.getElementById('editor');
+  if(tab==='deeds'){
+    e.innerHTML=`<div class="hint">The 16 buyable streets. Rent is auto-calculated: own 1 of a colour = half price, own both = full price (you can override on the card art later).</div>
+    <table><thead><tr><th>Property name</th><th style="width:90px">Price (M)</th><th style="width:120px">Colour group</th><th style="width:60px"></th></tr></thead><tbody>
+    ${data.deeds.map((d,i)=>`<tr>
+      <td><input type="text" value="${esc(d.name)}" oninput="upd('deeds',${i},'name',this.value)"></td>
+      <td><input type="number" value="${d.price}" oninput="upd('deeds',${i},'price',+this.value)"></td>
+      <td><select onchange="upd('deeds',${i},'color',this.value)">${Object.keys(GROUPS).map(g=>`<option value="${g}" ${d.color===g?'selected':''}>${g}</option>`).join('')}</select></td>
+      <td><button class="row-del" onclick="del('deeds',${i})">remove</button></td>
+    </tr>`).join('')}
+    </tbody></table>
+    <button class="add-row" onclick="add('deeds')">+ add property</button>`;
+  } else if(tab==='chance'){
+    e.innerHTML=`<div class="hint">The 20 Chance cards. Edit the text freely — keep it short so it fits the card.</div>
+    <table><thead><tr><th style="width:30px">#</th><th>Card text</th><th style="width:60px"></th></tr></thead><tbody>
+    ${data.chance.map((c,i)=>`<tr>
+      <td>${i+1}</td>
+      <td><textarea oninput="upd('chance',${i},null,this.value)">${esc(c)}</textarea></td>
+      <td><button class="row-del" onclick="del('chance',${i})">remove</button></td>
+    </tr>`).join('')}
+    </tbody></table>
+    <button class="add-row" onclick="add('chance')">+ add chance card</button>`;
+  } else {
+    e.innerHTML=`<div class="nfc-note"><b>NFC tip:</b> stick one NFC sticker on the back of each player card. The phone-bank reads the sticker to know whose money to change. The figurine itself needs no electronics.</div>
+    <div class="hint">The 4 player (bank) cards, each with its token and passive reward.</div>
+    <table><thead><tr><th>Player name</th><th style="width:70px">Token</th><th style="width:110px">Colour</th><th>Reward</th><th style="width:60px"></th></tr></thead><tbody>
+    ${data.bank.map((b,i)=>`<tr>
+      <td><input type="text" value="${esc(b.name)}" oninput="upd('bank',${i},'name',this.value)"></td>
+      <td><input type="text" value="${esc(b.token)}" oninput="upd('bank',${i},'token',this.value)"></td>
+      <td><input type="color" class="swatch" value="${b.color}" oninput="upd('bank',${i},'color',this.value)"></td>
+      <td><input type="text" value="${esc(b.perk)}" oninput="upd('bank',${i},'perk',this.value)"></td>
+      <td><button class="row-del" onclick="del('bank',${i})">remove</button></td>
+    </tr>`).join('')}
+    </tbody></table>
+    <button class="add-row" onclick="add('bank')">+ add player card</button>`;
+  }
+}
+
+function renderPreview(){
+  const p=document.getElementById('preview');
+  const tag=`<div class="tagzone"><div class="tagcircle">NFC<br>25mm</div></div>`;
+  if(tab==='deeds'){
+    p.style.gridTemplateColumns='repeat(auto-fill,minmax(230px,1fr))';
+    p.innerHTML=data.deeds.map(d=>{
+      const c=GROUPS[d.color]||'#999';
+      const half=Math.round(d.price/2);
+      return `<div class="card pcard">
+        <div class="content">
+          <div class="band" style="background:${c}">${esc(d.name)}</div>
+          <div class="body">
+            <div class="rent"><span>Rent (1 of set)</span><b>M${half}</b></div>
+            <div class="rent"><span>Rent (both)</span><b>M${d.price}</b></div>
+            <div class="price">PRICE M${d.price}</div>
+          </div>
+        </div>${tag}</div>`;
+    }).join('');
+  } else if(tab==='chance'){
+    p.style.gridTemplateColumns='repeat(auto-fill,minmax(230px,1fr))';
+    p.innerHTML=data.chance.map(c=>`<div class="card ccard">
+      <div class="content"><div class="hd">Chance</div><div class="q">?</div><div class="txt">${esc(c)}</div></div>${tag}</div>`).join('');
+  } else {
+    p.style.gridTemplateColumns='repeat(auto-fill,minmax(240px,1fr))';
+    p.innerHTML=data.bank.map(b=>`<div class="card bcard">
+      <div class="content">
+        <div class="top" style="background:${b.color}"><div class="tok">${esc(b.token)}</div><div class="nm">${esc(b.name)}</div></div>
+        <div class="perk"><b>Reward:</b> ${esc(b.perk)}</div>
+      </div>${tag}</div>`).join('');
+  }
+}
+
+function render(){renderTabs();renderEditor();renderPreview();save()}
+function esc(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+function upd(k,i,f,v){if(f===null)data[k][i]=v;else data[k][i][f]=v;save();if(k!=='chance'||f!==null)renderPreview()}
+function del(k,i){data[k].splice(i,1);render()}
+function add(k){
+  if(k==='deeds')data.deeds.push({name:'New Property',price:100,color:'lblue'});
+  else if(k==='chance')data.chance.push('New chance card text.');
+  else data.bank.push({name:'New Player',token:'\u2B50',color:'#888888',perk:'Describe the reward'});
+  render();
+}
+
+/* ---------- PDF EXPORT ---------- */
+const MM={W:210,H:297};           // A4
+const CARD={w:85.6,h:54};         // ISO ID-1 credit-card size (landscape), mm
+const RFID=25;                    // round NFC/RFID tag diameter (mm)
+const ZONE=29;                    // width reserved on the right for the round tag
+const CW=CARD.w-ZONE;             // usable content width on the left
+const MARGIN=12, GAP=5;
+function rfidZone(doc,x,y){
+  const zx=x+CW;
+  doc.setFillColor(250,247,238);
+  doc.rect(zx,y,ZONE,CARD.h,'F');
+  doc.setDrawColor(150);doc.setLineWidth(0.2);doc.setLineDashPattern([1,1],0);
+  const cx=zx+ZONE/2, cy=y+CARD.h/2;
+  doc.circle(cx,cy,RFID/2);
+  doc.setLineDashPattern([],0);
+  doc.setTextColor(150,150,150);doc.setFont('helvetica','normal');doc.setFontSize(6);
+  doc.text('NFC tag',cx,cy+1.5,{align:'center'});
+  doc.setDrawColor(210);doc.setLineWidth(0.15);doc.setLineDashPattern([0.8,0.8],0);
+  doc.line(zx,y+2,zx,y+CARD.h-2);
+  doc.setLineDashPattern([],0);
+}
+function gridFit(){
+  const cols=Math.floor((MM.W-2*MARGIN+GAP)/(CARD.w+GAP));
+  const rows=Math.floor((MM.H-2*MARGIN+GAP)/(CARD.h+GAP));
+  return {cols,rows,per:cols*rows};
+}
+function cutLines(doc,x,y){
+  doc.setDrawColor(180);doc.setLineWidth(0.15);
+  doc.rect(x,y,CARD.w,CARD.h);
+}
+function deedCard(doc,x,y,d){
+  const c=hex(GROUPS[d.color]||'#999');
+  doc.setFillColor(c[0],c[1],c[2]);
+  doc.rect(x,y,CW,13,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(10);
+  doc.text(up(d.name),x+CW/2,y+8.5,{align:'center',maxWidth:CW-6});
+  doc.setTextColor(20,20,20);doc.setFont('helvetica','normal');doc.setFontSize(8);
+  const half=Math.round(d.price/2);
+  doc.text('Rent, 1 of set',x+4,y+24);doc.text('M'+half,x+CW-4,y+24,{align:'right'});
+  doc.text('Rent, both',x+4,y+32);
+  doc.setFont('helvetica','bold');doc.text('M'+d.price,x+CW-4,y+32,{align:'right'});
+  doc.setDrawColor(0);doc.setLineWidth(0.4);doc.line(x+4,y+39,x+CW-4,y+39);
+  doc.setFontSize(12);doc.text('PRICE  M'+d.price,x+CW/2,y+48,{align:'center'});
+  rfidZone(doc,x,y);
+}
+function chanceCard(doc,x,y,t){
+  doc.setTextColor(140,140,140);doc.setFont('helvetica','bold');doc.setFontSize(7);
+  doc.text('CHANCE',x+CW/2,y+9,{align:'center'});
+  doc.setTextColor(31,95,174);doc.setFontSize(26);
+  doc.text('?',x+CW/2,y+25,{align:'center'});
+  doc.setTextColor(20,20,20);doc.setFont('helvetica','normal');doc.setFontSize(8);
+  doc.text(t,x+CW/2,y+36,{align:'center',maxWidth:CW-8});
+  rfidZone(doc,x,y);
+}
+function bankCard(doc,x,y,b){
+  const c=hex(b.color);
+  doc.setFillColor(c[0],c[1],c[2]);
+  doc.rect(x,y,CW,CARD.h,'F');
+  doc.setTextColor(255,255,255);doc.setFont('helvetica','bold');doc.setFontSize(13);
+  doc.text(b.name,x+CW/2,y+20,{align:'center',maxWidth:CW-6});
+  doc.setFillColor(255,255,255);doc.rect(x+4,y+27,CW-8,CARD.h-31,'F');
+  doc.setTextColor(120,120,120);doc.setFont('helvetica','normal');doc.setFontSize(7);
+  doc.text('REWARD',x+CW/2,y+34,{align:'center'});
+  doc.setTextColor(20,20,20);doc.setFont('helvetica','bold');doc.setFontSize(8);
+  doc.text(b.perk,x+CW/2,y+42,{align:'center',maxWidth:CW-10});
+  rfidZone(doc,x,y);
+}
+function hex(h){h=h.replace('#','');return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]}
+function up(s){return String(s).toUpperCase()}
+
+function layCards(doc,items,drawFn,startNew){
+  const {cols,rows,per}=gridFit();
+  items.forEach((it,idx)=>{
+    const onPage=idx%per;
+    if(idx>0 && onPage===0) doc.addPage();
+    const col=onPage%cols, row=Math.floor(onPage/cols);
+    const x=MARGIN+col*(CARD.w+GAP), y=MARGIN+row*(CARD.h+GAP);
+    cutLines(doc,x,y);
+    drawFn(doc,x,y,it);
+  });
+}
+
+function exportPDF(){
+  const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});
+  if(tab==='deeds')layCards(doc,data.deeds,deedCard);
+  else if(tab==='chance')layCards(doc,data.chance,chanceCard);
+  else layCards(doc,data.bank,bankCard);
+  doc.save('monopoly-'+tab+'.pdf');
+}
+function exportAll(){
+  const {jsPDF}=window.jspdf;const doc=new jsPDF({unit:'mm',format:'a4'});
+  layCards(doc,data.deeds,deedCard);
+  doc.addPage();layCards(doc,data.chance,chanceCard);
+  doc.addPage();layCards(doc,data.bank,bankCard);
+  doc.save('monopoly-all-cards.pdf');
+}
+
+render();
+</script>
+</body>
+</html>

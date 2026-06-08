@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>NFC Scan Demo</title>
+<style>
+  :root{--bg:#0e1320;--panel:#161d2e;--accent:#1f8fff;--ok:#1FB25A;--warn:#F2C400;--err:#ED4B4B;--mut:#8b93a7}
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  body{font-family:-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:#eef1f7;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:24px 18px;gap:18px}
+  h1{font-size:20px;font-weight:800;text-align:center;margin-top:8px}
+  .sub{color:var(--mut);font-size:13px;text-align:center;max-width:340px;line-height:1.5}
+  button{font-family:inherit;font-size:17px;font-weight:800;border:none;border-radius:14px;padding:18px 28px;width:100%;max-width:340px;cursor:pointer;transition:transform .08s,filter .15s}
+  button:active{transform:scale(.97)}
+  .scan{background:var(--accent);color:#fff}
+  .scan:disabled{background:#2a3142;color:#5a6276}
+  .stop{background:#2a3142;color:#cdd4e2}
+  .status{max-width:340px;width:100%;background:var(--panel);border-radius:14px;padding:16px 18px;font-size:14px;display:flex;align-items:center;gap:12px;line-height:1.4}
+  .dot{width:12px;height:12px;border-radius:50%;background:var(--mut);flex-shrink:0}
+  .dot.live{background:var(--accent);animation:pulse 1.2s ease-in-out infinite}
+  .dot.ok{background:var(--ok)}
+  .dot.err{background:var(--err)}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .reads{max-width:340px;width:100%;display:flex;flex-direction:column;gap:10px}
+  .read{background:var(--panel);border-radius:12px;padding:14px 16px;border-left:4px solid var(--ok);animation:in .25s ease}
+  @keyframes in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+  .read .uid{font-family:"SF Mono",Consolas,monospace;font-size:18px;font-weight:800;letter-spacing:.5px;word-break:break-all}
+  .read .meta{color:var(--mut);font-size:12px;margin-top:4px}
+  .count{color:var(--mut);font-size:13px;text-align:center}
+  .err-box{background:#3a1f1f;border:1px solid #6a2e2e;color:#ffc9c9;border-radius:12px;padding:14px 16px;font-size:13px;max-width:340px;line-height:1.5}
+  .hint{color:var(--mut);font-size:12px;text-align:center;max-width:340px;line-height:1.5}
+  code{background:#222a3a;padding:1px 6px;border-radius:5px;font-size:12px}
+</style>
+</head>
+<body>
+  <h1>📟 NFC Scan Test</h1>
+  <div class="sub">Tap “Start scanning”, then hold an NFC tag to the back of the phone. Its unique ID will appear below.</div>
+
+  <button class="scan" id="scanBtn">Start scanning</button>
+  <button class="stop" id="stopBtn" style="display:none">Stop</button>
+
+  <div class="status"><span class="dot" id="dot"></span><span id="statusText">Not scanning yet.</span></div>
+
+  <div class="reads" id="reads"></div>
+  <div class="count" id="count"></div>
+
+  <div class="hint">Works only in <b>Chrome on Android</b>, over HTTPS (or localhost). iPhone and desktop browsers don’t support Web NFC.</div>
+
+<script>
+const scanBtn=document.getElementById('scanBtn');
+const stopBtn=document.getElementById('stopBtn');
+const dot=document.getElementById('dot');
+const statusText=document.getElementById('statusText');
+const reads=document.getElementById('reads');
+const countEl=document.getElementById('count');
+
+let reader=null, controller=null, seen=new Set(), total=0;
+
+function setStatus(text,state){statusText.textContent=text;dot.className='dot'+(state?' '+state:'');}
+
+function supported(){return ('NDEFReader' in window);}
+
+async function startScan(){
+  if(!supported()){
+    showError('This browser does not support Web NFC. Open this page in <b>Chrome on Android</b>.');
+    return;
+  }
+  try{
+    reader=new NDEFReader();
+    controller=new AbortController();
+    await reader.scan({signal:controller.signal});
+    setStatus('Scanning… hold a tag to the phone.','live');
+    scanBtn.style.display='none';
+    stopBtn.style.display='block';
+
+    reader.onreading=(event)=>{
+      const serial=(event.serialNumber||'(no serial)').toLowerCase();
+      total++;
+      const isNew=!seen.has(serial);
+      seen.add(serial);
+      addRead(serial,event,isNew);
+      updateCount();
+      // brief feedback
+      setStatus('Tag read! Keep scanning…','ok');
+      if(navigator.vibrate)navigator.vibrate(60);
+      setTimeout(()=>setStatus('Scanning… hold a tag to the phone.','live'),900);
+    };
+    reader.onreadingerror=()=>{
+      setStatus('Couldn’t read that tag — try repositioning it.','err');
+    };
+  }catch(err){
+    if(err.name==='NotAllowedError'){
+      showError('Permission denied. Allow NFC for this site and make sure NFC is turned on in Android settings.');
+    }else if(err.name==='NotSupportedError'){
+      showError('No NFC hardware available, or NFC is switched off in Android settings.');
+    }else{
+      showError('Error: '+err.name+' — '+(err.message||''));
+    }
+    resetButtons();
+  }
+}
+
+function stopScan(){
+  if(controller)controller.abort();
+  reader=null;controller=null;
+  setStatus('Stopped.','');
+  resetButtons();
+}
+function resetButtons(){scanBtn.style.display='block';stopBtn.style.display='none';}
+
+function addRead(serial,event,isNew){
+  const recordCount=event.message&&event.message.records?event.message.records.length:0;
+  const div=document.createElement('div');
+  div.className='read';
+  div.style.borderLeftColor=isNew?'var(--ok)':'var(--warn)';
+  div.innerHTML=`<div class="uid">${serial}</div>
+    <div class="meta">${isNew?'NEW tag':'already seen'} · ${recordCount} data record${recordCount===1?'':'s'} · ${new Date().toLocaleTimeString()}</div>`;
+  reads.prepend(div);
+}
+function updateCount(){
+  countEl.textContent=`${total} read${total===1?'':'s'} · ${seen.size} unique tag${seen.size===1?'':'s'}`;
+}
+function showError(html){
+  const e=document.createElement('div');
+  e.className='err-box';e.innerHTML=html;
+  reads.prepend(e);
+  setStatus('Not scanning.','err');
+}
+
+scanBtn.addEventListener('click',startScan);
+stopBtn.addEventListener('click',stopScan);
+
+if(!supported()){
+  setStatus('Web NFC not available in this browser.','err');
+  scanBtn.disabled=true;
+}
+</script>
+</body>
+</html>

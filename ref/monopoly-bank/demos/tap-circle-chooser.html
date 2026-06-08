@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bank demo — tap circle chooser</title>
+<style>
+  body { font-family: system-ui, sans-serif; background:#f5f4ef; margin:0; padding:1rem; color:#2c2c2a; }
+  .wrap { max-width:300px; margin:0 auto; }
+  .app { background:#fff; border:0.5px solid #d3d1c7; border-radius:12px; overflow:hidden; }
+  .hdr { background:#2c2c2a; color:#fff; padding:10px 14px; display:flex; justify-content:space-between; }
+  .body { padding:28px 16px; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:200px; }
+  .tapcircle { width:120px; height:120px; border-radius:50%; border:2px solid #378add; background:#e6f1fb; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:46px; color:#0c447c; }
+  .tapcircle:active { transform:scale(0.95); }
+  .sheet-bg { position:fixed; inset:0; background:rgba(0,0,0,0.45); display:flex; align-items:flex-end; justify-content:center; }
+  .sheet { width:100%; max-width:300px; background:#fff; border-radius:12px 12px 0 0; padding:14px; }
+  .chip { display:flex; align-items:center; gap:8px; width:100%; text-align:left; padding:11px 12px; border-radius:8px; border:0.5px solid #d3d1c7; background:#fff; cursor:pointer; margin-bottom:6px; font-size:13px; font-weight:500; }
+  .chip:active { transform:scale(0.98); }
+  .sw { width:12px; height:12px; border-radius:3px; flex-shrink:0; }
+  .back { font-size:12px; color:#5f5e5a; background:none; border:none; cursor:pointer; padding:0; margin-bottom:10px; }
+  .check { width:90px; height:90px; border-radius:50%; background:#eaf3de; display:flex; align-items:center; justify-content:center; color:#3b6d11; font-size:44px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="app">
+    <div class="hdr"><span style="font-size:14px;font-weight:500;">Bank</span><span id="state" style="font-size:11px;opacity:0.7;">tap to scan</span></div>
+    <div class="body" id="body"></div>
+  </div>
+</div>
+<div id="sheet"></div>
+<script>
+const players=[{id:'pl_meir',name:'Meir',color:'#378ADD'},{id:'pl_abba',name:'Abba',color:'#1D9E75'},{id:'pl_imma',name:'Imma',color:'#D85A30'},{id:'pl_sara',name:'Sara',color:'#D4537E'}];
+const props=[{id:'pr_balt',name:'Baltic Ave',color:'#955436'},{id:'pr_medi',name:'Mediterranean',color:'#955436'},{id:'pr_orie',name:'Oriental Ave',color:'#AAE0FA'},{id:'pr_verm',name:'Vermont Ave',color:'#AAE0FA'}];
+const chances=Array.from({length:6},(_,i)=>({id:'ch_'+(i+1),name:'Chance '+(i+1),color:'#888780'}));
+const body=document.getElementById('body'),sheet=document.getElementById('sheet'),state=document.getElementById('state');
+function vibrate(ms){if(navigator.vibrate)navigator.vibrate(ms);}
+const close=()=>sheet.innerHTML='';
+function showCircle(){state.textContent='tap to scan';body.innerHTML='<div class="tapcircle" id="circle">&#9783;</div>';document.getElementById('circle').onclick=chooseType;}
+function open(html){sheet.innerHTML='<div class="sheet-bg"><div class="sheet">'+html+'</div></div>';}
+function chooseType(){
+  open('<p style="font-size:12px;color:#888780;margin:0 0 10px;">card type</p><button class="chip" data-t="player">Player</button><button class="chip" data-t="property">Property</button><button class="chip" data-t="chance">Chance</button>');
+  sheet.querySelectorAll('.chip').forEach(b=>b.onclick=()=>chooseCard(b.dataset.t));
+}
+function chooseCard(type){
+  const list=type==='player'?players:type==='property'?props:chances;
+  open('<button class="back" id="bk">&#8249; type</button>'+list.map(c=>{
+    const icon=type==='chance'?'':'<span class="sw" style="background:'+c.color+'"></span>';
+    return '<button class="chip" data-id="'+c.id+'">'+icon+c.name+'</button>';
+  }).join(''));
+  document.getElementById('bk').onclick=chooseType;
+  sheet.querySelectorAll('.chip[data-id]').forEach(b=>b.onclick=()=>{const c=list.find(x=>x.id===b.dataset.id);pick(c);});
+}
+function pick(c){
+  close();vibrate([20,40,30]);state.textContent='scanned';
+  body.innerHTML='<div class="check">&#10003;</div><p style="font-size:15px;font-weight:500;margin:14px 0 2px;">'+c.name+'</p><p style="font-size:11px;color:#888780;margin:0 0 16px;">'+c.id+'</p><button class="chip" style="justify-content:center;width:auto;padding:8px 18px;" id="again">tap again</button>';
+  document.getElementById('again').onclick=showCircle;
+}
+showCircle();
+</script>
+</body>
+</html>

@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bank demo — multi-card reader</title>
+<style>
+  body { font-family: system-ui, sans-serif; background:#f5f4ef; margin:0; padding:1rem; color:#2c2c2a; }
+  .wrap { max-width:320px; margin:0 auto; }
+  .app { background:#fff; border:0.5px solid #d3d1c7; border-radius:12px; overflow:hidden; }
+  .hdr { background:#2c2c2a; color:#fff; padding:10px 14px; display:flex; justify-content:space-between; }
+  .body { padding:14px; min-height:96px; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+  .tray { border-top:0.5px solid #d3d1c7; background:#f5f4ef; padding:10px 12px; }
+  .rbtn,.tab { border-radius:8px; border:0.5px solid #b4b2a9; background:#fff; cursor:pointer; font-size:12px; padding:6px 4px; }
+  .tab.on { background:#e6f1fb; color:#0c447c; border-color:#378add; }
+  .simcard { display:flex; align-items:center; gap:8px; text-align:left; padding:8px 10px; border-radius:8px; border:0.5px solid #d3d1c7; background:#fff; cursor:pointer; width:100%; margin-bottom:5px; }
+  .simcard:active { transform:scale(0.98); }
+  .sw { width:10px; height:10px; border-radius:2px; flex-shrink:0; }
+  .check { width:60px; height:60px; border-radius:50%; background:#eaf3de; display:flex; align-items:center; justify-content:center; color:#3b6d11; font-size:32px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="app">
+    <div class="hdr"><span id="title" style="font-size:14px;font-weight:500;">Buy property</span><span id="state" style="font-size:11px;opacity:0.7;">tap property</span></div>
+    <div class="body" id="body"></div>
+    <div class="tray">
+      <p style="font-size:11px;color:#888780;margin:0 0 8px;">simulated reader</p>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:8px;">
+        <button class="tab on" data-t="player">Players</button>
+        <button class="tab" data-t="property">Property</button>
+        <button class="tab" data-t="chance">Chance</button>
+      </div>
+      <div id="cards"></div>
+    </div>
+  </div>
+  <button class="rbtn" id="reset" style="width:100%;margin-top:10px;padding:8px;">Reset</button>
+</div>
+<script>
+const players=[{id:'pl_meir',type:'player',name:'Meir',bal:1200,color:'#378ADD'},{id:'pl_abba',type:'player',name:'Abba',bal:1320,color:'#1D9E75'},{id:'pl_imma',type:'player',name:'Imma',bal:1610,color:'#D85A30'},{id:'pl_sara',type:'player',name:'Sara',bal:980,color:'#D4537E'}];
+const props=[{id:'pr_balt',type:'property',name:'Baltic Ave',price:60,color:'#955436',owner:null},{id:'pr_medi',type:'property',name:'Mediterranean',price:60,color:'#955436',owner:'pl_imma'},{id:'pr_orie',type:'property',name:'Oriental Ave',price:100,color:'#AAE0FA',owner:null},{id:'pr_verm',type:'property',name:'Vermont Ave',price:100,color:'#AAE0FA',owner:'pl_sara'}];
+const chances=[{id:'ch_bank50',type:'chance',name:'Bank pays you M50',effect:50},{id:'ch_fee30',type:'chance',name:'Pay fee M30',effect:-30},{id:'ch_gojail',type:'chance',name:'Go to Jail',effect:0}];
+const all=[...players,...props,...chances];
+const byId=id=>all.find(c=>c.id===id);
+const titleEl=document.getElementById('title'),stateEl=document.getElementById('state'),bodyEl=document.getElementById('body'),cardsEl=document.getElementById('cards');
+let tab='player',step='card1',first=null;
+function vibrate(ms){if(navigator.vibrate)navigator.vibrate(ms);}
+function onCardTap(id){
+  const c=byId(id);vibrate(15);
+  if(step==='card1'){
+    if(c.type==='player'){flash('Tap a property or chance card first');return;}
+    first=c;step='card2';
+    if(c.type==='property'){stateEl.textContent='tap buyer';bodyEl.innerHTML='<p style="font-size:14px;font-weight:500;">'+c.name+' · M'+c.price+'</p><p style="font-size:12px;color:#5f5e5a;">tap the buyer</p>';}
+    else{stateEl.textContent='tap player';bodyEl.innerHTML='<p style="font-size:14px;font-weight:500;">'+c.name+'</p><p style="font-size:12px;color:#5f5e5a;">tap the player</p>';}
+  }else if(step==='card2'){
+    if(c.type!=='player'){flash('Now tap a player card');return;}
+    let msg;
+    if(first.type==='property'){c.bal-=first.price;first.owner=c.id;msg=c.name+' bought '+first.name+' for M'+first.price;}
+    else{c.bal+=first.effect;msg=first.effect>=0?c.name+' got M'+first.effect:c.name+' paid M'+(-first.effect);}
+    step='done';stateEl.textContent='approved';
+    bodyEl.innerHTML='<div class="check">&#10003;</div><p style="font-size:13px;margin-top:10px;">'+msg+'</p>';
+    vibrate([20,40,30]);renderCards();
+  }
+}
+function flash(m){const o=bodyEl.innerHTML;bodyEl.innerHTML='<p style="font-size:13px;color:#a32d2d;">'+m+'</p>';setTimeout(()=>{if(step!=='done')bodyEl.innerHTML=o;},1400);}
+function renderCards(){
+  const list=tab==='player'?players:tab==='property'?props:chances;
+  cardsEl.innerHTML=list.map(c=>{
+    if(c.type==='player')return '<button class="simcard" data-id="'+c.id+'"><span class="sw" style="background:'+c.color+'"></span><span style="font-size:12px;font-weight:500;color:'+c.color+'">'+c.name+'</span><span style="margin-left:auto;font-size:11px;color:#5f5e5a">M'+c.bal.toLocaleString()+'</span></button>';
+    if(c.type==='property')return '<button class="simcard" data-id="'+c.id+'"><span class="sw" style="background:'+c.color+'"></span><span style="font-size:12px;font-weight:500;">'+c.name+'</span><span style="margin-left:auto;font-size:11px;color:#5f5e5a">'+(c.owner?'owned':'M'+c.price)+'</span></button>';
+    return '<button class="simcard" data-id="'+c.id+'"><span style="font-size:12px;">'+c.name+'</span></button>';
+  }).join('');
+  cardsEl.querySelectorAll('.simcard').forEach(b=>b.onclick=()=>onCardTap(b.dataset.id));
+}
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{tab=t.dataset.t;document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));renderCards();});
+function reset(){step='card1';first=null;titleEl.textContent='Buy property';stateEl.textContent='tap property or chance';bodyEl.innerHTML='<p style="font-size:14px;font-weight:500;">Tap a card to begin</p>';renderCards();}
+document.getElementById('reset').onclick=reset;reset();
+</script>
+</body>
+</html>
