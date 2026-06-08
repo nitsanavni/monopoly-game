@@ -261,8 +261,10 @@ const HANDLERS = {
    Chooser — stands in for the NFC tap.
    ============================================================ */
 let chooserTab = 'player';
-function openChooser(filter){   // filter limits which tabs make sense
+let chooserHeading = 'Choose a card';
+function openChooser(filter, heading){   // filter limits which tabs make sense
   chooserTab = filter || 'player';
+  chooserHeading = heading || 'Choose a card';
   drawChooser(filter);
 }
 function closeChooser(){ document.getElementById('sheet').innerHTML=''; }
@@ -284,7 +286,7 @@ function drawChooser(filter){
       t==='player'?'Players':t==='property'?'Property':'Chance'}</button>`).join('')}</div>` : '';
   document.getElementById('sheet').innerHTML =
     `<div class="sheet-bg" id="sbg"><div class="sheet">
-      <h3>Tap a card</h3>${tabBar}${rows}
+      <h3>${chooserHeading}</h3>${tabBar}${rows}
       <button class="btn ghost" id="cx">Cancel</button>
     </div></div>`;
   const sheet=document.getElementById('sheet');
@@ -302,14 +304,26 @@ function typeOf(c){ return c.token!==undefined?'player' : c.price!==undefined?'p
    Screens
    ============================================================ */
 let screen='home';
+// each mode is a list of steps. Every step has a plain-language question (q)
+// shown big on screen AND as the chooser title, plus which cards it offers.
 const MODES=[
-  {k:'passgo', ic:'🏁', name:'Pass GO',  d:'+M200', seq:['player']},
-  {k:'buy',    ic:'🏠', name:'Buy',      d:'property → buyer', seq:['property','player']},
-  {k:'rent',   ic:'💰', name:'Pay rent', d:'owner taps first', seq:['property','player']},
-  {k:'flight', ic:'✈️', name:'Flight',   d:'−M100', seq:['player']},
-  {k:'chance', ic:'❔', name:'Chance',   d:'apply card', seq:['chance','player']},
-  {k:'jail',   ic:'🔓', name:'Jail',     d:'pay M100', seq:['player']},
-  {k:'sell',   ic:'🏦', name:'Sell back',d:'debt only', seq:['property']},
+  {k:'passgo', ic:'🏁', name:'Pass GO',   d:'Get M200', steps:[
+    {filter:'player', q:'Who went past GO?'}]},
+  {k:'buy',    ic:'🏠', name:'Buy a place', d:'Buy a property', steps:[
+    {filter:'property', q:'Which place are you buying?'},
+    {filter:'player',   q:'Who is buying it?'}]},
+  {k:'rent',   ic:'💰', name:'Get rent',  d:'Someone pays you', steps:[
+    {filter:'property', q:'Which place? (the owner picks it)'},
+    {filter:'player',   q:'Who landed on it and pays?'}]},
+  {k:'flight', ic:'✈️', name:'Fly',       d:'Fly for M100', steps:[
+    {filter:'player',   q:'Who is flying?'}]},
+  {k:'chance', ic:'❔', name:'Chance',    d:'Use a Chance card', steps:[
+    {filter:'chance',   q:'Which Chance card?'},
+    {filter:'player',   q:'Who is it for?'}]},
+  {k:'jail',   ic:'🔓', name:'Leave Jail', d:'Pay M100 to get out', steps:[
+    {filter:'player',   q:'Who is paying to leave Jail?'}]},
+  {k:'sell',   ic:'🏦', name:'Sell back', d:'Sell to the bank', steps:[
+    {filter:'property', q:'Which place are you selling back?'}]},
 ];
 
 function renderNav(){
@@ -335,7 +349,9 @@ function renderHome(){
   const modes=MODES.map(m=>`<button class="mode" data-m="${m.k}">
     <span class="ic">${m.ic}</span><span>${m.name}</span><span class="d">${m.d}</span></button>`).join('');
   document.getElementById('main').innerHTML=
-    `<h2>Balances</h2>${bals}<h2 style="margin-top:18px">Actions</h2><div class="grid">${modes}</div>`;
+    `<h2>Money</h2>${bals}<h2 style="margin-top:18px">What happened?</h2>
+     <div class="hint" style="text-align:left;margin:-4px 0 12px">Pick what just happened in the game, then choose the cards.</div>
+     <div class="grid">${modes}</div>`;
   document.querySelectorAll('button.mode').forEach(b=>b.onclick=()=>startMode(b.dataset.m));
   setStatus('ready');
 }
@@ -345,36 +361,29 @@ function renderAction(){
   const main=document.getElementById('main');
   if(flow.step==='done'){
     main.innerHTML=`<div class="card center"><div class="check">✓</div>
-      <div style="font-weight:700">${flow.result}</div>
-      <div class="hint">${m.name} complete</div></div>
-      <button class="btn" id="more">Do another ${m.name}</button>
-      <button class="btn ghost" id="home" style="margin-top:10px">Home</button>`;
+      <div style="font-weight:800;font-size:19px">🎉 All done!</div>
+      <div style="font-weight:600;margin-top:8px">${flow.result}</div></div>
+      <button class="btn" id="more">Do this again</button>
+      <button class="btn ghost" id="home" style="margin-top:10px">Back to home</button>
+      <div class="hint" style="margin-top:14px">Made a mistake? Settings ⋯ has an Undo.</div>`;
     document.getElementById('more').onclick=()=>startMode(flow.mode);
     document.getElementById('home').onclick=()=>go('home');
     return;
   }
-  const prompts={
-    passgo:'Tap the player who passed GO',
-    buy: flow.step===1?'Tap the property being bought':'Now tap the buyer',
-    rent: flow.step===1?'Owner: tap your property':'Payer: tap your card',
-    flight:'Tap the flying player',
-    chance: flow.step===1?'Tap the Chance card':'Tap the player it applies to',
-    jail:'Tap the player paying out',
-    sell:'Tap the property to sell back',
-  };
-  const filter = m.seq[flow.step-1];
+  const total=m.steps.length, step=m.steps[flow.step-1];
   main.innerHTML=`<div class="card center">
-      <div style="font-size:30px;margin-bottom:6px">${m.ic}</div>
-      <div style="font-weight:800;font-size:17px">${m.name}</div>
-      ${flow.first?`<div class="meta" style="margin-top:6px">${flow.first.name}</div>`:''}
-      <div class="hint">${flow.error?`<span style="color:var(--err)">${flow.error}</span>`:prompts[flow.mode]}</div>
+      <div style="font-size:34px;margin-bottom:4px">${m.ic}</div>
+      <div style="font-weight:700;font-size:13px;color:var(--mut)">${m.name}${total>1?` &middot; step ${flow.step} of ${total}`:''}</div>
+      <div style="font-weight:800;font-size:21px;margin-top:10px;line-height:1.3">${step.q}</div>
+      ${flow.first?`<div class="meta" style="margin-top:8px">✓ picked: <b style="color:var(--ink)">${flow.first.name}</b></div>`:''}
+      ${flow.error?`<div class="hint"><span style="color:var(--err)">${flow.error}</span></div>`:''}
     </div>
-    <button class="btn" id="tap">Tap a card</button>
-    <button class="btn ghost" id="cancel" style="margin-top:10px">Cancel</button>
-    <div class="hint" style="margin-top:14px">The chooser stands in for an NFC tap until the cards exist.</div>`;
-  document.getElementById('tap').onclick=()=>openChooser(filter);
+    <button class="btn" id="tap">👆 Choose a card</button>
+    <button class="btn ghost" id="cancel" style="margin-top:10px">Start over</button>
+    <div class="hint" style="margin-top:14px">Choosing here is just like tapping a real card later.</div>`;
+  document.getElementById('tap').onclick=()=>openChooser(step.filter, step.q);
   document.getElementById('cancel').onclick=()=>go('home');
-  setStatus(flow.step===2?'tap 2 of 2':'tap a card');
+  setStatus(total>1?`step ${flow.step} of ${total}`:'pick a card');
 }
 
 function renderPlayers(){
